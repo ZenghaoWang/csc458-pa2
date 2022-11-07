@@ -80,7 +80,14 @@ class BBTopo(Topo):
         # interface names will change from s0-eth1 to newname-eth1.
         switch = self.addSwitch('s0')
 
-        # TODO: Add links with appropriate characteristics
+        # Add links with appropriate characteristics
+        h1, h2 = hosts[0], hosts[1]
+
+        # Link from h1 to router
+        self.addLink(h1, switch, bw=args.bw_host, delay='%sms' % args.delay, max_queue_size=args.maxq)
+        # Link router to h2. Bottleneck
+        self.addLink(switch, h2, bw=args.bw_net, delay='%sms' % args.delay, max_queue_size=args.maxq)
+
 
 # Simple wrappers around monitoring utilities.  You are welcome to
 # contribute neatly written (using classes) monitoring scripts for
