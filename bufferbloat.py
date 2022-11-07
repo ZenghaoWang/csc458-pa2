@@ -22,10 +22,6 @@ import sys
 import os
 import math
 
-# TODO: Don't just read the TODO sections in this code.  Remember that
-# one of the goals of this assignment is for you to learn how to use
-# Mininet.
-
 parser = ArgumentParser(description="Bufferbloat tests")
 parser.add_argument('--bw-host', '-B',
                     type=float,
@@ -116,8 +112,11 @@ def start_iperf(net):
     # that the TCP flow is not receiver window limited.  If it is,
     # there is a chance that the router buffer may not get filled up.
     server = h2.popen("iperf -s -w 16m")
-    # TODO: Start the iperf client on h1.  Ensure that you create a
+    # Start the iperf client on h1.  Ensure that you create a
     # long lived TCP flow. You may need to redirect iperf's stdout to avoid blocking.
+    # TODO: redirect stdout (to what?)
+    h1 = net.get('h1')
+    h1.cmd("iperf -c %s -t %s" % (h2.IP(), args.time))
 
 def start_webserver(net):
     h1 = net.get('h1')
@@ -162,18 +161,18 @@ def bufferbloat():
     start_tcpprobe("cwnd.txt")
     start_ping(net)
 
-    # TODO: Start monitoring the queue sizes.  Since the switch I
+    # Start monitoring the queue sizes.  Since the switch I
     # created is "s0", I monitor one of the interfaces.  Which
     # interface?  The interface numbering starts with 1 and increases.
     # Depending on the order you add links to your network, this
     # number may be 1 or 2.  Ensure you use the correct number.
     #
-    # qmon = start_qmon(iface='s0-eth2',
-    #                  outfile='%s/q.txt' % (args.dir))
-    qmon = None
+    qmon = start_qmon(iface='s0-eth2',
+                     outfile='%s/q.txt' % (args.dir))
 
-    # TODO: Start iperf, webservers, etc.
-    # start_iperf(net)
+    # Start iperf, webservers, etc.
+    start_iperf(net)
+    start_webserver(net)
 
     # Hint: The command below invokes a CLI which you can use to
     # debug.  It allows you to run arbitrary commands inside your
@@ -188,6 +187,7 @@ def bufferbloat():
     # spawned on host h1 (not from google!)
     # Hint: have a separate function to do this and you may find the
     # loop below useful.
+    measurements = []
     start_time = time()
     while True:
         # do the measurement (say) 3 times.
