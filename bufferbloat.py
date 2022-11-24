@@ -14,6 +14,7 @@ from subprocess import Popen, PIPE
 from time import sleep, time
 from multiprocessing import Process
 from argparse import ArgumentParser
+from helper import stdev, avg
 
 from monitor import monitor_qlen
 import termcolor as T
@@ -189,6 +190,9 @@ def bufferbloat():
     # loop below useful.
     measurements = []
     start_time = time()
+    h1 = net.get("h1")
+    h2 = net.get("h2")
+
     while True:
         # do the measurement (say) 3 times.
         sleep(1)
@@ -198,9 +202,13 @@ def bufferbloat():
             break
         print "%.1fs left..." % (args.time - delta)
 
-    # TODO: compute average (and standard deviation) of the fetch
-    # times.  You don't need to plot them.  Just note it in your
-    # README and explain.
+
+    # Write standard deviation and average of webpage transfer times to file
+    with open("bb-q%s/statistics.txt" % args.maxq, "w+") as f:
+        f.write("Average: %s \n" % avg(measurements))
+        f.write("Standard Deviation: %s \n" % stdev(measurements))
+        
+    
 
     stop_tcpprobe()
     if qmon is not None:
