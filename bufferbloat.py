@@ -115,9 +115,8 @@ def start_iperf(net):
     server = h2.popen("iperf -s -w 16m")
     # Start the iperf client on h1.  Ensure that you create a
     # long lived TCP flow. You may need to redirect iperf's stdout to avoid blocking.
-    # TODO: redirect stdout (to what?)
     h1 = net.get('h1')
-    h1.cmd("iperf -c %s -t %s" % (h2.IP(), args.time))
+    h1.popen("iperf -c %s -t %s > /dev/null" % (h2.IP(), args.time))
 
 def start_webserver(net):
     h1 = net.get('h1')
@@ -139,7 +138,15 @@ def start_ping(net):
     h1 = net.get('h1')
     h2 = net.get('h2')
     popen = h1.popen("ping -c %s -i 0.1 %s > %s/ping.txt" % (args.time * 10, h2.IP(), args.dir), shell=True)
-    popen.communicate()
+
+def download_index(net):
+    # download index.html from h1 and return the amount of time it took, in seconds.
+    h1 = net.get("h1")
+    h2 = net.get("h2")
+    cmd = "curl -o /dev/null -s -w %{time_total} " + h1.IP() + "/http/index.html"
+    time = h2.popen(cmd).communicate()[0] # Read stdout from process
+    return float(time)
+
 
 def bufferbloat():
     if not os.path.exists(args.dir):
@@ -160,7 +167,6 @@ def bufferbloat():
 
     # Start all the monitoring processes
     start_tcpprobe("cwnd.txt")
-    start_ping(net)
 
     # Start monitoring the queue sizes.  Since the switch I
     # created is "s0", I monitor one of the interfaces.  Which
@@ -172,7 +178,10 @@ def bufferbloat():
                      outfile='%s/q.txt' % (args.dir))
 
     # Start iperf, webservers, etc.
-    start_iperf(net)
+    iperf = Process(target=start_iperf, args=(net,))
+    ping = Process(target=start_ping, args=(net,))
+    iperf.start()
+    ping.start()
     start_webserver(net)
 
     # Hint: The command below invokes a CLI which you can use to
@@ -181,21 +190,26 @@ def bufferbloat():
     #
     # CLI(net)
 
-    # TODO: measure the time it takes to complete webpage transfer
+    # measure the time it takes to complete webpage transfer
     # from h1 to h2 (say) 3 times.  Hint: check what the following
     # command does: curl -o /dev/null -s -w %{time_total} google.com
     # Now use the curl command to fetch webpage from the webserver you
     # spawned on host h1 (not from google!)
     # Hint: have a separate function to do this and you may find the
     # loop below useful.
-    measurements = []
+    avg_transfer_times = []
     start_time = time()
     h1 = net.get("h1")
     h2 = net.get("h2")
 
+	# Download index.html 3 times every 5 seconds until the experiment is over
     while True:
-        # do the measurement (say) 3 times.
-        sleep(1)
+        # Download index.html 3 times
+        for _ in range(3):
+            avg_transfer_times.append(download_index(net))
+        # Wait 5 secondc
+        sleep(5)
+        # Exit if experiment time is up
         now = time()
         delta = now - start_time
         if delta > args.time:
@@ -205,8 +219,8 @@ def bufferbloat():
 
     # Write standard deviation and average of webpage transfer times to file
     with open("bb-q%s/statistics.txt" % args.maxq, "w+") as f:
-        f.write("Average: %s \n" % avg(measurements))
-        f.write("Standard Deviation: %s \n" % stdev(measurements))
+        f.write("Average: %s seconds\n" % avg(avg_transfer_times))
+        f.write("Standard Deviation: %s seconds\n" % stdev(avg_transfer_times))
         
     
 
@@ -217,6 +231,8 @@ def bufferbloat():
     # Ensure that all processes you create within Mininet are killed.
     # Sometimes they require manual killing.
     Popen("pgrep -f webserver.py | xargs kill -9", shell=True).wait()
+    iperf.terminate()
+    ping.terminate()
 
 if __name__ == "__main__":
     bufferbloat()
